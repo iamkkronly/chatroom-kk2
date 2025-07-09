@@ -1,9 +1,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const socketio = require('socket.io');
+
 const app = express();
+const server = http.createServer(app);
+const io = socketio(server);
 
 const PORT = process.env.PORT || 3000;
 const mongoURI = process.env.MONGO_URI;
@@ -13,9 +17,9 @@ mongoose.connect(mongoURI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 }).then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+  .catch(err => console.error('❌ MongoDB Error:', err));
 
-// Schemas
+// MongoDB Schemas
 const userSchema = new mongoose.Schema({
   room: String,
   username: String,
@@ -34,13 +38,9 @@ const Message = mongoose.model('Message', messageSchema);
 
 // Middleware
 app.use(bodyParser.json());
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// Serve index.html directly
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Join room endpoint
+// Join Room
 app.post('/join', async (req, res) => {
   const { room, username, password } = req.body;
   if (!room || !username || !password) return res.status(400).send('Missing fields');
@@ -57,31 +57,37 @@ app.post('/join', async (req, res) => {
 
   const messages = await Message.find({
     room,
-    timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
   }).sort({ timestamp: 1 });
 
   res.send({ success: true, messages });
 });
 
-// Send message endpoint
-app.post('/send', async (req, res) => {
-  const { room, username, message } = req.body;
-  if (!room || !username || !message) return res.status(400).send('Missing fields');
+// Real-time chat with Socket.IO
+io.on('connection', socket => {
+  socket.on('joinRoom', ({ room, username }) => {
+    socket.join(room);
+    socket.to(room).emit('message', { username: 'System', message: `${username} joined the room` });
+  });
 
-  const user = await User.findOne({ room, username });
-  if (!user) return res.status(403).send('User not in room');
+  socket.on('sendMessage', async ({ room, username, message }) => {
+    await Message.create({ room, username, message });
+    io.to(room).emit('message', { username, message });
+  });
 
-  await Message.create({ room, username, message });
-  res.send({ success: true });
+  socket.on('disconnecting', () => {
+    const rooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+    rooms.forEach(room => {
+      socket.to(room).emit('message', { username: 'System', message: 'A user left the room' });
+    });
+  });
 });
 
-// Clean old messages every hour
+// Delete old messages (every hour)
 setInterval(async () => {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
   await Message.deleteMany({ timestamp: { $lt: cutoff } });
 }, 60 * 60 * 1000);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Real-time chat running on http://localhost:${PORT}`));
