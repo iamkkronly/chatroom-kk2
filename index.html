@@ -1,74 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Real-Time Chat Room</title>
+  <title>Chat with History</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 500px;
-      margin: 40px auto;
-      padding: 20px;
-      background: #f9f9f9;
-      border-radius: 10px;
-    }
-    #messages {
-      border: 1px solid #ccc;
-      height: 300px;
-      overflow-y: auto;
-      background: white;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-    }
-    input, button {
-      width: 100%;
-      padding: 12px;
-      margin: 5px 0;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-    }
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
+    body { font-family: Arial; background: #eee; margin: 0; padding: 0; }
+    #chat-box { max-width: 600px; margin: 20px auto; background: white; padding: 10px; border-radius: 5px; }
+    #messages { list-style: none; padding: 0; max-height: 300px; overflow-y: auto; }
+    #messages li { padding: 5px 10px; }
+    form { display: flex; margin-top: 10px; }
+    input { flex: 1; padding: 10px; }
+    button { padding: 10px; background: green; color: white; border: none; }
+    .username { font-weight: bold; margin-right: 5px; }
   </style>
 </head>
 <body>
-  <h2>Real-Time Chat Room</h2>
-  <div id="messages"></div>
-  <input id="msg" placeholder="Type your message...">
-  <button onclick="sendMessage()">Send</button>
+  <div id="chat-box">
+    <ul id="messages"></ul>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Type your message..." />
+      <button>Send</button>
+    </form>
+  </div>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+    let username = '';
 
-    // Assign a random guest username
-    const username = 'Guest' + Math.floor(Math.random() * 1000);
-
-    function addMsg(msg) {
-      const messagesDiv = document.getElementById('messages');
-      messagesDiv.innerHTML += `<p><strong>${msg.username}:</strong> ${msg.message}</p>`;
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    while (!username) {
+      username = prompt('Enter your username:');
     }
+    socket.emit('set username', username);
 
-    socket.on('message', addMsg);
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
 
-    // Notify server that user joined
-    socket.emit('joinRoom', { username });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value.trim()) {
+        socket.emit('chat message', input.value.trim());
+        input.value = '';
+      }
+    });
 
-    function sendMessage() {
-      const input = document.getElementById('msg');
-      const message = input.value.trim();
-      if (!message) return;
-      socket.emit('sendMessage', { username, message });
-      input.value = '';
+    // On new message
+    socket.on('chat message', (data) => {
+      addMessage(data);
+    });
+
+    // On chat history
+    socket.on('chat history', (history) => {
+      history.forEach(addMessage);
+    });
+
+    function addMessage(data) {
+      const item = document.createElement('li');
+      item.innerHTML = `<span class="username">${data.user}:</span> ${data.text}`;
+      messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
     }
   </script>
 </body>
