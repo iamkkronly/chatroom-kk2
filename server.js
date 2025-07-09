@@ -1,64 +1,58 @@
 const express = require('express');
 const http = require('http');
-const socketio = require('socket.io');
-const mongoose = require('mongoose');
+const socketIO = require('socket.io');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketio(server);
+const io = socketIO(server);
+const PORT = process.env.PORT || 10000;
 
-const PORT = process.env.PORT || 3000;
-const mongoURI = process.env.MONGO_URI;
+const users = {};
+let messages = []; // store chat messages in memory
 
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+// Clean up messages older than 24 hours
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24h in ms
+  messages = messages.filter(msg => msg.timestamp > cutoff);
+}, 60 * 1000); // run every 60 seconds
 
-const messageSchema = new mongoose.Schema({
-  username: String,
-  message: String,
-  timestamp: { type: Date, default: Date.now }
-});
-
-const Message = mongoose.model('Message', messageSchema);
-
+// Serve index.html
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  fs.readFile(path.join(__dirname, 'index.html'), 'utf8', (err, data) => {
+    if (err) return res.status(500).send('Error loading page');
+    res.send(data);
+  });
 });
 
-io.on('connection', async (socket) => {
-  // Send last 24h messages to new user
-  const cutoff = new Date(Date.now() - 24*60*60*1000);
-  const recentMessages = await Message.find({ timestamp: { $gte: cutoff } }).sort({ timestamp: 1 });
-  recentMessages.forEach(msg => {
-    socket.emit('message', { username: msg.username, message: msg.message });
+io.on('connection', (socket) => {
+  console.log('User connected');
+
+  socket.on('set username', (username) => {
+    users[socket.id] = username;
+
+    // Send chat history from last 24 hours
+    const recentMessages = messages.filter(
+      msg => msg.timestamp > Date.now() - 24 * 60 * 60 * 1000
+    );
+    socket.emit('chat history', recentMessages);
   });
 
-  socket.on('joinRoom', ({ username }) => {
-    socket.broadcast.emit('message', { username: 'System', message: `${username} joined the chat` });
-  });
+  socket.on('chat message', (text) => {
+    const username = users[socket.id] || 'Anonymous';
+    const msg = { user: username, text, timestamp: Date.now() };
 
-  socket.on('sendMessage', async ({ username, message }) => {
-    // Save message
-    await Message.create({ username, message });
-    // Broadcast message to all clients
-    io.emit('message', { username, message });
+    messages.push(msg);
+    io.emit('chat message', msg);
   });
 
   socket.on('disconnect', () => {
-    // Optional: emit disconnect message
+    delete users[socket.id];
+    console.log('User disconnected');
   });
 });
 
-// Periodic cleanup of old messages every hour
-setInterval(async () => {
-  const cutoff = new Date(Date.now() - 24*60*60*1000);
-  await Message.deleteMany({ timestamp: { $lt: cutoff } });
-}, 60*60*1000);
-
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
