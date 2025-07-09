@@ -1,14 +1,15 @@
 {
-  "name": "private-sms-app",
+  "name": "private-sms-realtime",
   "version": "1.0.0",
-  "description": "Private SMS app using Node.js and MongoDB",
+  "description": "Private real-time chat app",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "body-parser": "^1.20.2",
     "express": "^4.19.2",
-    "mongoose": "^7.6.1"
+    "mongoose": "^7.6.1",
+    "body-parser": "^1.20.2",
+    "socket.io": "^4.7.2"
   }
 }
