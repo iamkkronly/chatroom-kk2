@@ -1,0 +1,14 @@
+{
+  "name": "private-sms-app",
+  "version": "1.0.0",
+  "description": "Private SMS app using Node.js and MongoDB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2",
+    "mongoose": "^7.6.1"
+  }
+}
