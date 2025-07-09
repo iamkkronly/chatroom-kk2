@@ -3,67 +3,31 @@
 <head>
   <title>🔒 Private Chat Room</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 500px;
-      margin: 40px auto;
-      padding: 20px;
-      border: 1px solid #ddd;
-      border-radius: 12px;
-      background: #f9f9f9;
-    }
-
-    h2 {
-      text-align: center;
-      color: #333;
-    }
-
-    input, button {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-    }
-
-    button {
-      background: #007bff;
-      color: white;
-      cursor: pointer;
-      border: none;
-    }
-
-    button:hover {
-      background: #0056b3;
-    }
-
-    #messages {
-      border: 1px solid #ccc;
-      padding: 10px;
-      height: 300px;
-      overflow-y: scroll;
-      background: white;
-      margin-top: 20px;
-    }
+    body { font-family: Arial; max-width: 500px; margin: 40px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    button { background: #007bff; color: white; border: none; }
+    button:hover { background: #0056b3; }
+    #messages { height: 300px; overflow-y: auto; background: #fff; padding: 10px; border: 1px solid #ccc; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h2>🔒 Private Chat Room</h2>
 
+  <h2>🔒 Private Chat Room</h2>
   <button onclick="generatePrivateKey()">Generate Private Key</button>
-  <input id="room" placeholder="Enter Private Key to Join">
-  <input id="username" placeholder="Enter Your Username">
-  <input id="password" type="password" placeholder="Enter Room Password">
+  <input id="room" placeholder="Enter Private Key">
+  <input id="username" placeholder="Your Username">
+  <input id="password" type="password" placeholder="Room Password">
   <button onclick="joinRoom()">Join Room</button>
 
   <div id="chat" style="display:none;">
     <div id="messages"></div>
     <input id="msg" placeholder="Type your message...">
-    <button onclick="sendMsg()">Send</button>
+    <button onclick="sendMessage()">Send</button>
   </div>
 
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
+    let socket;
     let room = '', username = '';
 
     function generatePrivateKey() {
@@ -85,28 +49,24 @@
         .then(data => {
           if (data.success) {
             document.getElementById('chat').style.display = 'block';
-            const msgBox = document.getElementById('messages');
-            msgBox.innerHTML = '';
+            document.getElementById('messages').innerHTML = '';
             data.messages.forEach(addMsg);
+
+            socket = io();
+            socket.emit('joinRoom', { room, username });
+            socket.on('message', addMsg);
           } else {
             alert('Login failed');
           }
         });
     }
 
-    function sendMsg() {
+    function sendMessage() {
       const message = document.getElementById('msg').value;
-      fetch('/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room, username, message })
-      }).then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            addMsg({ username, message });
-            document.getElementById('msg').value = '';
-          }
-        });
+      if (socket && message.trim()) {
+        socket.emit('sendMessage', { room, username, message });
+        document.getElementById('msg').value = '';
+      }
     }
 
     function addMsg(msg) {
