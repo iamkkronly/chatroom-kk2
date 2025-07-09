@@ -1,78 +1,74 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🔒 Private Chat Room</title>
+  <title>Real-Time Chat Room</title>
   <style>
-    body { font-family: Arial; max-width: 500px; margin: 40px auto; padding: 20px; background: #f9f9f9; border-radius: 10px; }
-    input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; }
-    button { background: #007bff; color: white; border: none; }
-    button:hover { background: #0056b3; }
-    #messages { height: 300px; overflow-y: auto; background: #fff; padding: 10px; border: 1px solid #ccc; margin-top: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 10px;
+    }
+    #messages {
+      border: 1px solid #ccc;
+      height: 300px;
+      overflow-y: auto;
+      background: white;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
-
-  <h2>🔒 Private Chat Room</h2>
-  <button onclick="generatePrivateKey()">Generate Private Key</button>
-  <input id="room" placeholder="Enter Private Key">
-  <input id="username" placeholder="Your Username">
-  <input id="password" type="password" placeholder="Room Password">
-  <button onclick="joinRoom()">Join Room</button>
-
-  <div id="chat" style="display:none;">
-    <div id="messages"></div>
-    <input id="msg" placeholder="Type your message...">
-    <button onclick="sendMessage()">Send</button>
-  </div>
+  <h2>Real-Time Chat Room</h2>
+  <div id="messages"></div>
+  <input id="msg" placeholder="Type your message...">
+  <button onclick="sendMessage()">Send</button>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
-    let socket;
-    let room = '', username = '';
+    const socket = io();
 
-    function generatePrivateKey() {
-      const key = Math.random().toString(36).substring(2, 10).toUpperCase();
-      alert("Your Private Key: " + key);
-      document.getElementById('room').value = key;
-    }
-
-    function joinRoom() {
-      room = document.getElementById('room').value;
-      username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-
-      fetch('/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room, username, password })
-      }).then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            document.getElementById('chat').style.display = 'block';
-            document.getElementById('messages').innerHTML = '';
-            data.messages.forEach(addMsg);
-
-            socket = io();
-            socket.emit('joinRoom', { room, username });
-            socket.on('message', addMsg);
-          } else {
-            alert('Login failed');
-          }
-        });
-    }
-
-    function sendMessage() {
-      const message = document.getElementById('msg').value;
-      if (socket && message.trim()) {
-        socket.emit('sendMessage', { room, username, message });
-        document.getElementById('msg').value = '';
-      }
-    }
+    // Assign a random guest username
+    const username = 'Guest' + Math.floor(Math.random() * 1000);
 
     function addMsg(msg) {
-      const msgBox = document.getElementById('messages');
-      msgBox.innerHTML += `<p><strong>${msg.username}:</strong> ${msg.message}</p>`;
-      msgBox.scrollTop = msgBox.scrollHeight;
+      const messagesDiv = document.getElementById('messages');
+      messagesDiv.innerHTML += `<p><strong>${msg.username}:</strong> ${msg.message}</p>`;
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    socket.on('message', addMsg);
+
+    // Notify server that user joined
+    socket.emit('joinRoom', { username });
+
+    function sendMessage() {
+      const input = document.getElementById('msg');
+      const message = input.value.trim();
+      if (!message) return;
+      socket.emit('sendMessage', { username, message });
+      input.value = '';
     }
   </script>
 </body>
